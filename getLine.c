@@ -1,91 +1,170 @@
 #include "shell.h"
 
 /**
- * print_error - prints a custom error message
- * @i: index of the command in history
- * @s: name of the program
- * @argv: array of arguments from the command line
+ * input_buf - buffers chained commands
+ * @info: parameter struct
+ * @buf: address of buffer
+ * @len: address of len var
  *
- * Description: Concatenate strings to format the error message
- * Free previous concatenation at every new string
- * When the string is completed, write message to standard error
+ * Return: bytes read
  */
-void print_error(int *i, char *s, char **argv)
+ssize_t input_buf(info_t *info, char **buf, size_t *len)
 {
-	char *buf1 = NULL, *buf2 = NULL, *buf3 = NULL, *buf4 = NULL, *buf5 = NULL;
-	char *number = NULL;
+	ssize_t r = 0;
+	size_t len_p = 0;
 
-	number = convert(*i, 10);
-
-	buf1 = str_concat(s, ": ");
-	buf2 = str_concat(buf1, number);
-	free(buf1);
-	buf3 = str_concat(buf2, ": ");
-	free(buf2);
-	buf4 = str_concat(buf3, argv[0]);
-	free(buf3);
-	buf5 = str_concat(buf4, ": not found\n");
-	free(buf4);
-	write(2, buf5, _strlen(buf5));
-	free(buf5);
+	if (!*len) /* if nothing left in the buffer, fill it */
+	{
+		/*bfree((void **)info->cmd_buf);*/
+		free(*buf);
+		*buf = NULL;
+		signal(SIGINT, sigintHandler);
+#if USE_GETLINE
+		r = getline(buf, &len_p, stdin);
+#else
+		r = _getline(info, buf, &len_p);
+#endif
+		if (r > 0)
+		{
+			if ((*buf)[r - 1] == '\n')
+			{
+				(*buf)[r - 1] = '\0'; /* remove trailing newline */
+				r--;
+			}
+			info->linecount_flag = 1;
+			remove_comments(*buf);
+			build_history_list(info, *buf, info->histcount++);
+			/* if (_strchr(*buf, ';')) is this a command chain? */
+			{
+				*len = r;
+				info->cmd_buf = buf;
+			}
+		}
+	}
+	return (r);
 }
 
 /**
- * print_error_env - prints a custom error message for env builtin
- * @argv: array of arguments from the command line
- * Description: Concatenate strings to format the error message
- * Free previous concatenation at every new string
- * When the string is completed, write message to standard error
+ * get_input - gets a line minus the newline
+ * @info: parameter struct
+ *
+ * Return: bytes read
  */
-void print_error_env(char **argv)
+ssize_t get_input(info_t *info)
 {
-	char *buf1 = NULL, *buf2 = NULL, *buf3 = NULL;
+	static char *buf; /* the ';' command chain buffer */
+	static size_t i, j, len;
+	ssize_t r = 0;
+	char **buf_p = &(info->arg), *p;
 
-	buf1 = str_concat(argv[0], ": ");
-	buf2 = str_concat(buf1, argv[1]);
-	free(buf1);
-	buf3 = str_concat(buf2, ": No such file or directory\n");
-	free(buf2);
-	write(2, buf3, _strlen(buf3));
-	free(buf3);
+	_putchar(BUF_FLUSH);
+	r = input_buf(info, &buf, &len);
+	if (r == -1) /* EOF */
+		return (-1);
+	if (len)	/* we have commands left in the chain buffer */
+	{
+		j = i; /* init new iterator to current buf position */
+		p = buf + i; /* get pointer for return */
+
+		check_chain(info, buf, &j, i, len);
+		while (j < len) /* iterate to semicolon or end */
+		{
+			if (is_chain(info, buf, &j))
+				break;
+			j++;
+		}
+
+		i = j + 1; /* increment past nulled ';'' */
+		if (i >= len) /* reached end of buffer? */
+		{
+			i = len = 0; /* reset position and length */
+			info->cmd_buf_type = CMD_NORM;
+		}
+
+		*buf_p = p; /* pass back pointer to current command position */
+		return (_strlen(p)); /* return length of current command */
+	}
+
+	*buf_p = buf; /* else not a chain, pass back buffer from _getline() */
+	return (r); /* return length of buffer from _getline() */
 }
 
 /**
- * print_error_exit - prints a custom error message for exit builtin
- * @i: index of the command in history
- * @s: name of the program
- * @argv: array of arguments from the command line
- * Description: Concatenate strings to format the error message
- * Free previous concatenation at every new string
- * When the string is completed, write message to standard error
+ * read_buf - reads a buffer
+ * @info: parameter struct
+ * @buf: buffer
+ * @i: size
+ *
+ * Return: r
  */
-void print_error_exit(int *i, char *s, char **argv)
+ssize_t read_buf(info_t *info, char *buf, size_t *i)
 {
-	char *buf1 = NULL, *buf2 = NULL, *buf3 = NULL;
-	char *buf4 = NULL, *buf5 = NULL, *buf6 = NULL, *buf7 = NULL;
-	char *number = NULL;
+	ssize_t r = 0;
 
-	number = convert(*i, 10);
-
-	buf1 = str_concat(s, ": ");
-
-	buf2 = str_concat(buf1, number);
-	free(buf1);
-	buf3 = str_concat(buf2, ": ");
-	free(buf2);
-	buf4 = str_concat(buf3, argv[0]);
-	free(buf3);
-	buf5 = str_concat(buf4, ": Illegal number: ");
-	free(buf4);
-	buf6 = str_concat(buf5, argv[1]);
-	free(buf5);
-	buf7 = str_concat(buf6, "\n");
-	free(buf6);
-	write(2, buf7, _strlen(buf7));
-	free(buf7);
+	if (*i)
+		return (0);
+	r = read(info->readfd, buf, READ_BUF_SIZE);
+	if (r >= 0)
+		*i = r;
+	return (r);
 }
 
 /**
- * print_error_main - prints a custom error message for main
- * @av: array of arguments passed to main
- * Description: Conc
+ * _getline - gets the next line of input from STDIN
+ * @info: parameter struct
+ * @ptr: address of pointer to buffer, preallocated or NULL
+ * @length: size of preallocated ptr buffer if not NULL
+ *
+ * Return: s
+ */
+int _getline(info_t *info, char **ptr, size_t *length)
+{
+	static char buf[READ_BUF_SIZE];
+	static size_t i, len;
+	size_t k;
+	ssize_t r = 0, s = 0;
+	char *p = NULL, *new_p = NULL, *c;
+
+	p = *ptr;
+	if (p && length)
+		s = *length;
+	if (i == len)
+		i = len = 0;
+
+	r = read_buf(info, buf, &len);
+	if (r == -1 || (r == 0 && len == 0))
+		return (-1);
+
+	c = _strchr(buf + i, '\n');
+	k = c ? 1 + (unsigned int)(c - buf) : len;
+	new_p = _realloc(p, s, s ? s + k : k + 1);
+	if (!new_p) /* MALLOC FAILURE! */
+		return (p ? free(p), -1 : -1);
+
+	if (s)
+		_strncat(new_p, buf + i, k - i);
+	else
+		_strncpy(new_p, buf + i, k - i + 1);
+
+	s += k - i;
+	i = k;
+	p = new_p;
+
+	if (length)
+		*length = s;
+	*ptr = p;
+	return (s);
+}
+
+/**
+ * sigintHandler - blocks ctrl-C
+ * @sig_num: the signal number
+ *
+ * Return: void
+ */
+void sigintHandler(__attribute__((unused))int sig_num)
+{
+	_puts("\n");
+	_puts("$ ");
+	_putchar(BUF_FLUSH);
+}
