@@ -1,224 +1,97 @@
 #include "shell.h"
 
 /**
- * is_builtin - checks if the command is a builtin
- * @line: line from input, passed in to free properly
- * @prog_name: name of the program
- * @argv: parsed command line
- * @i: pointer to the increment variable of main
- * @head: double pointer to the environ linked list
- *
- * Description: Intermediate step, compares input with the builtin
- * commands to pass it into the correct function.
- * If the first argument compares with exit,
- * Call the exit handler function
- * If the exit handler function failed,
- * Call the error on exit function
- * If exit handler did not fail,
- * Free all variables and return the exit status and return 1 to main
- * If the first argument compares with env,
- * Call the env handler function
- * If the env handler function failed,
- * Call the print_error_exit function, and return 1 to main
- * If the first argument compares with setenv or unsetenv,
- * Call the setenv_hander function (another intermediate step)
- * And return 1
- * If the first argument compares with cd,
- * Call the cd handler function
- * If the cd handler function failed,
- * Call the print_error_cd function
- * Manually write a newline and return 1 to main
- * If none of the builtins compared,
- *
- * Return: 0 to main
+ * _myexit - exits the shell
+ * @info: Structure containing potential arguments. Used to maintain
+ *          constant function prototype.
+ *  Return: exits with a given exit status
+ *         (0) if info.argv[0] != "exit"
  */
-int is_builtin(char *line, char **argv, char *prog_name, int *i, env_t **head)
+int _myexit(info_t *info)
 {
-	int n, l;
-	long int m;
+	int exitcheck;
 
-	if (!_strcmp(argv[0], "exit"))
+	if (info->argv[1])  /* If there is an exit arguement */
 	{
-		m = exit_handler(argv);
-		if (m == -1)
-			print_error_exit(i, prog_name, argv);
+		exitcheck = _erratoi(info->argv[1]);
+		if (exitcheck == -1)
+		{
+			info->status = 2;
+			print_error(info, "Illegal number: ");
+			_eputs(info->argv[1]);
+			_eputchar('\n');
+			return (1);
+		}
+		info->err_num = _erratoi(info->argv[1]);
+		return (-2);
+	}
+	info->err_num = -1;
+	return (-2);
+}
+
+/**
+ * _mycd - changes the current directory of the process
+ * @info: Structure containing potential arguments. Used to maintain
+ *          constant function prototype.
+ *  Return: Always 0
+ */
+int _mycd(info_t *info)
+{
+	char *s, *dir, buffer[1024];
+	int chdir_ret;
+
+	s = getcwd(buffer, 1024);
+	if (!s)
+		_puts("TODO: >>getcwd failure emsg here<<\n");
+	if (!info->argv[1])
+	{
+		dir = _getenv(info, "HOME=");
+		if (!dir)
+			chdir_ret = /* TODO: what should this be? */
+				chdir((dir = _getenv(info, "PWD=")) ? dir : "/");
 		else
+			chdir_ret = chdir(dir);
+	}
+	else if (_strcmp(info->argv[1], "-") == 0)
+	{
+		if (!_getenv(info, "OLDPWD="))
 		{
-			free_everything(argv);
-			free(line);
-			free_list(head);
-			exit(m);
+			_puts(s);
+			_putchar('\n');
+			return (1);
 		}
-		return (1);
+		_puts(_getenv(info, "OLDPWD=")), _putchar('\n');
+		chdir_ret = /* TODO: what should this be? */
+			chdir((dir = _getenv(info, "OLDPWD=")) ? dir : "/");
 	}
-	if (!_strcmp(argv[0], "env"))
+	else
+		chdir_ret = chdir(info->argv[1]);
+	if (chdir_ret == -1)
 	{
-		n = env_handler(argv, head);
-		if (n == -1)
-			print_error_env(argv);
-		return (1);
-	}
-	if (!_strcmp(argv[0], "setenv") || !_strcmp(argv[0], "unsetenv"))
-	{
-		setenv_handler(argv, head, i, prog_name);
-		return (1);
-	}
-	if (!_strcmp(argv[0], "cd"))
-	{
-		l = cd_handler(argv, head);
-		if (l == -1)
-		{
-			print_error_cd(i, prog_name, argv);
-			write(2, "\n", 1);
-		}
-		return (1);
-	}
-	return (0);
-}
-
-/**
- * exit_handler - handles the builtin exit with arguments
- * @tokens: array of strings from the command line
- *
- * Description: If there is no second token,
- * Return num (which is 0)
- * Since the function continued, there is an argument, and loop through it
- * Check if characters in argument compare with numbers
- * If they compare,
- * Turn a flag on, and check the next character
- * If it isnt a number,
- * Break out of the loop
- * If the character is not a number,
- * Break out of the loop
- * Regardless, turn flag off
- * If the flag still equals 1,
- * save the argument into an integer with atoi,
- * and return the number
- *
- * Return: 0 if there are no arguments,
- * -1 on failure, or the value of the argument
- */
-long int exit_handler(char **tokens)
-{
-	int flag = 0, i;
-	long int num = 0;
-
-	if (tokens[1] == NULL)
-		return (num);
-	for (i = 0; tokens[1][i]; i++)
-	{
-		if ((tokens[1][i] >= '0' && tokens[1][i] <= '9') || tokens[1][0] == '+')
-		{
-			flag = 1;
-			if (tokens[1][i + 1] < '0' || tokens[1][i + 1] > '9')
-				break;
-		}
-		else
-			break;
-		flag = 0;
-	}
-	if (flag == 1)
-	{
-		num = _atoi(tokens[1]);
-		return (num);
-	}
-	return (-1);
-}
-
-/**
- * env_handler - replicates the bash env builtin
- * @av: array of arguments from the command line
- * @head: double pointer to the env_t linked list
- *
- * Return: 0 on success, -1 on error
- */
-int env_handler(char **av, env_t **head)
-{
-	if (av[1] == NULL)
-	{
-		print_list(*head);
-		return (0);
-	}
-	return (-1);
-}
-
-/**
- * cd_handler - replicates the bash cd builtin
- * @argv: array of arguments from the command line
- * @head: double pointer to the env_t linked list
- *
- * Description: Transform linked list into an array with
- * list_to_arr function
- * If there is no second argument,
- * Get value at HOME from environment
- * Change directory to the home value
- * Call change_pwd function on "home" value
- * Free the environment array of strings
- * Return 1 to is_builtin function
- * If there is a second argument and it's a '-' sign,
- * Set variable to value at OLDPWD in environment
- * Print that variable
- * Call change_pwd function on "oldpwd" value
- * Change directory to the oldpwd value
- * Free environment array of strings,
- * And return 1 to is_builtin function
- * If changing directory failed,
- * Free environment array of strings,
- * And return -1 to is_builtin function
- * If changing directory did not fail,
- * Call change_pwd function on argument 1
- * Then free the environment array of strings,
- * And return 1 to is_builtin function
- *
- * Return: 0 if none of the other cases succeeded
- */
-int cd_handler(char **argv, env_t **head)
-{
-	char *home = NULL, *old = NULL, **env = NULL;
-
-	env = list_to_arr(*head);
-	if (!argv[1])
-	{
-		home = get_env_val("HOME=", env);
-		chdir(home);
-		change_pwd(home, env, head);
-		free_everything(env);
-		return (1);
-	}
-	if (_strcmp(argv[1], "-") == 0)
-	{
-		old = get_env_val("OLDPWD=", env);
-		_puts(old);
-		change_pwd(old, env, head);
-		chdir(old);
-		free_everything(env);
-		return (1);
-	}
-	if (chdir(argv[1]) < 0)
-	{
-		free_everything(env);
-		return (-1);
+		print_error(info, "can't cd to ");
+		_eputs(info->argv[1]), _eputchar('\n');
 	}
 	else
 	{
-		change_pwd(argv[1], env, head);
-		free_everything(env);
-		return (1);
+		_setenv(info, "OLDPWD", _getenv(info, "PWD="));
+		_setenv(info, "PWD", getcwd(buffer, 1024));
 	}
 	return (0);
 }
 
 /**
- * change_pwd - helper function for cd
- * @path: path of the working directories we want to change to
- * @head: double pointer to the env_t linked list
- * @env: double array containing the environment
- *
- * Description: Allocate new array of strings to hold old pwd
- * First element in string array: unused
- * Add name, value, and NULL to string array
- * Allocate new array of strings to hold current pwd
- * First part of string array: unused
- * Add name, value, and NULL to string array
- * Change array back into a linked list
- * If the tra
+ * _myhelp - changes the current directory of the process
+ * @info: Structure containing potential arguments. Used to maintain
+ *          constant function prototype.
+ *  Return: Always 0
+ */
+int _myhelp(info_t *info)
+{
+	char **arg_array;
+
+	arg_array = info->argv;
+	_puts("help call works. Function not yet implemented \n");
+	if (0)
+		_puts(*arg_array); /* temp att_unused workaround */
+	return (0);
+}
