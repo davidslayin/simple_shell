@@ -51,34 +51,5 @@ int _strncmp(char *s1, char *s2, unsigned int n);
 char *_strdup(char *str);
 /* string_funcs_2.c */
 int _strlen(char *s);
-char *_strcpy(char *dest, char *src);
-/* helper_funcs.c */
-void free_everything(char **args);
-void sigint_handler(int sig);
-char **parse_line(char *line, int get);
-/* builtins.c */
-int is_builtin(char *line, char **argv, char *prog_name, int *i, env_t **head);
-long int exit_handler(char **tokens);
-int env_handler(char **av, env_t **head);
-int cd_handler(char **argv, env_t **head);
-void change_pwd(char *path, char **env, env_t **head);
-/* convert.c */
-char *convert(int num, int base);
-long int _atoi(char *s);
-/* list_funcs_1.c */
-env_t *add_node_end(env_t **head, char *str);
-int add_node_at_index(env_t **head, char *str, int index);
-int delete_node_at_index(env_t **head, unsigned int index);
-int find_index_list(env_t *head, char *name);
-/* list_funcs_2.c */
-size_t list_len(const env_t *h);
-size_t print_list(env_t *h);
-void free_list(env_t **head);
-int arr_to_list(env_t **head, char **env);
-char **list_to_arr(env_t *head);
-/* set_env.c */
-int _unsetenv(env_t **head, char **argv);
-int _setenv(env_t **head, char **argv, int args);
-void setenv_handler(char **argv, env_t **head, int *i, char *prog_name);
-void print_error_setenv(int *i, char *s, char **argv);
+char *_strcpy(ch;
 #endif

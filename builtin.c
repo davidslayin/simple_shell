@@ -221,44 +221,4 @@ int cd_handler(char **argv, env_t **head)
  * First part of string array: unused
  * Add name, value, and NULL to string array
  * Change array back into a linked list
- * If the transformation failed,
- * Return out of function
- * Call setenv on "old" variable
- * if setenv failed,
- * Free all variables and return out of function
- * Free the remaining current variable
- */
-void change_pwd(char *path, char **env, env_t **head)
-{
-	char **old = NULL, **current = NULL;
-	int nodes = 0, set = 0;
-
-	old = malloc(sizeof(char *) * 4);
-	old[0] = _strdup("old");
-	old[1] = _strdup("OLDPWD");
-	old[2] = _strdup(get_env_val("PWD=", env));
-	old[3] = NULL;
-	current = malloc(sizeof(char *) * 4);
-	current[0] = _strdup("current");
-	current[1] = _strdup("PWD");
-	current[2] = _strdup(path);
-	current[3] = NULL;
-	nodes = arr_to_list(head, env);
-	if (!nodes)
-		return;
-	set = _setenv(head, old, 2);
-	if (set < 0)
-	{
-		free_everything(old);
-		free_everything(current);
-		return;
-	}
-	free_everything(old);
-	set = _setenv(head, current, 2);
-	if (set < 0)
-	{
-		free_everything(current);
-		return;
-	}
-	free_everything(current);
-}
+ * If the tra

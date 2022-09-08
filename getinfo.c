@@ -92,17 +92,4 @@ will throw an error message if "baguette" is not an executable file the Simple S
 .RE
 .B $ exit 98
 .RS
-will exit the Simple Shell with a status of 98.
-.RE
-.SH SEE ALSO
-.I dash,
-.I csh
-.SH NOTES
-Simple Shell is entirely coded in the C programming language. It does not entirely replicate the real shell, 
-as some builtins and features are missing. Simple Shell only takes one command at a time for now.
-.sp
-.SH BUGS
-As mentionned before, some regular shell builtins are not implemented in Simple Shell, and trying to execute them
-will end up in unexpected behavior, or error message.
-.SH AUTHORS
-Dawit Alemayehu and Haleluya Amde
+will exit the Se
